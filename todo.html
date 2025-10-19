@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>To-Do Web App</title>
+
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent:#64ffda;
+      --muted:#9aa6b2;
+      --white:#f8fafc;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+      background: linear-gradient(180deg,#071024 0%, #071a2a 100%);
+      color:var(--white);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+
+    .container{
+      width:100%;
+      max-width:900px;
+      background:rgba(255,255,255,0.03);
+      border-radius:12px;
+      padding:28px;
+      box-shadow:0 8px 30px rgba(2,6,23,0.6);
+    }
+
+    h1{margin:0 0 18px 0; font-size:1.6rem; letter-spacing:0.5px}
+
+    .task-form{
+      display:flex;
+      gap:12px;
+      margin-bottom:18px;
+    }
+    .task-form input[type="text"], .task-form input[type="datetime-local"], .task-form input{
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background:rgba(255,255,255,0.02);
+      color:var(--white);
+      flex:1;
+    }
+    .task-form button{
+      padding:10px 14px;
+      border-radius:8px;
+      border:none;
+      background:var(--accent);
+      color:#012;
+      cursor:pointer;
+      font-weight:600;
+    }
+
+    .task-list{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px}
+
+    .task-item{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:10px;
+      border-radius:10px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.015));
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    .left{display:flex; align-items:center; gap:10px}
+    .complete-checkbox{width:18px; height:18px}
+    .meta .title{font-weight:600}
+    .meta .datetime{font-size:0.85rem; color:var(--muted)}
+
+    .actions button{
+      background:transparent;
+      border:none;
+      cursor:pointer;
+      font-size:1rem;
+      margin-left:6px;
+    }
+    .task-item.completed .title{ text-decoration:line-through; opacity:0.6 }
+    @media (max-width:560px){
+      .task-form{flex-direction:column}
+      .task-form button{width:100%}
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>To-Do App</h1>
+
+    <form id="task-form" class="task-form" autocomplete="off">
+      <input id="task-title" placeholder="Write a task..." required />
+      <input id="task-datetime" type="datetime-local" />
+      <button type="submit">Add</button>
+    </form>
+
+    <ul id="task-list" class="task-list" aria-live="polite"></ul>
+  </main>
+
+  <template id="task-template">
+    <li class="task-item">
+      <div class="left">
+        <input class="complete-checkbox" type="checkbox" />
+        <div class="meta">
+          <div class="title"></div>
+          <div class="datetime"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="edit-btn" title="Edit">✏️</button>
+        <button class="delete-btn" title="Delete">🗑️</button>
+      </div>
+    </li>
+  </template>
+
+  <script>
+    // Simple To-Do app with localStorage persistence
+    const STORAGE_KEY = 'todo_tasks_v1';
+    let tasks = [];
+
+    const form = document.getElementById('task-form');
+    const titleInput = document.getElementById('task-title');
+    const datetimeInput = document.getElementById('task-datetime');
+    const list = document.getElementById('task-list');
+    const template = document.getElementById('task-template');
+
+    function saveTasks(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    function loadTasks(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      tasks = raw ? JSON.parse(raw) : [];
+    }
+
+    function formatDateTime(dt){
+      if(!dt) return '';
+      const d = new Date(dt);
+      if (isNaN(d)) return '';
+      return d.toLocaleString();
+    }
+
+    function render(){
+      list.innerHTML = '';
+      tasks.sort((a,b)=> a.completed - b.completed); // incomplete first
+      tasks.forEach(task=>{
+        const node = template.content.cloneNode(true);
+        const li = node.querySelector('li');
+        li.dataset.id = task.id;
+        const checkbox = node.querySelector('.complete-checkbox');
+        const titleEl = node.querySelector('.title');
+        const dtEl = node.querySelector('.datetime');
+        const editBtn = node.querySelector('.edit-btn');
+        const deleteBtn = node.querySelector('.delete-btn');
+
+        titleEl.textContent = task.title || '(no title)';
+        dtEl.textContent = task.datetime ? formatDateTime(task.datetime) : '';
+
+        checkbox.checked = !!task.completed;
+        if(task.completed) li.classList.add('completed');
+
+        // events
+        checkbox.addEventListener('change', ()=> toggleComplete(task.id));
+        editBtn.addEventListener('click', ()=> editTask(task.id));
+        deleteBtn.addEventListener('click', ()=> deleteTask(task.id));
+
+        list.appendChild(node);
+      });
+    }
+
+    function addTask(title, datetime){
+      const t = {
+        id: Date.now().toString(),
+        title: title.trim(),
+        datetime: datetime || '',
+        completed: false
+      };
+      tasks.push(t);
+      saveTasks();
+      render();
+    }
+
+    function toggleComplete(id){
+      const t = tasks.find(x=>x.id===id);
+      if(!t) return;
+      t.completed = !t.completed;
+      saveTasks();
+      render();
+    }
+
+    function deleteTask(id){
+      if(!confirm('Delete this task?')) return;
+      tasks = tasks.filter(x=>x.id!==id);
+      saveTasks();
+      render();
+    }
+
+    function editTask(id){
+      const t = tasks.find(x=>x.id===id);
+      if(!t) return;
+      const newTitle = prompt('Edit task title:', t.title);
+      if(newTitle === null) return;
+      const newDatetime = prompt('Edit date & time (YYYY-MM-DDTHH:MM) or leave blank:', t.datetime || '');
+      if(newDatetime === null) {
+        t.title = newTitle.trim();
+        saveTasks();
+        render();
+        return;
+      }
+      t.title = newTitle.trim();
+      t.datetime = newDatetime.trim();
+      saveTasks();
+      render();
+    }
+
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const title = titleInput.value;
+      const dt = datetimeInput.value;
+      if(!title.trim()) return alert('Please enter a task title');
+      addTask(title, dt);
+      titleInput.value = '';
+      datetimeInput.value = '';
+      titleInput.focus();
+    });
+
+    loadTasks();
+    render();
+  </script>
+</body>
+</html>
